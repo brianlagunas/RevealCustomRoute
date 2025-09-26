@@ -14,25 +14,37 @@ namespace RevealSdk.Server
     /// <summary>
     /// A convention to change the route prefix for Reveal controllers
     /// </summary>
-    public class ChangeRevealPrefixConvention : IApplicationModelConvention
+    public class ChangeRevealPrefixConvention : IControllerModelConvention
     {
-        private readonly string _prefix;
+        private readonly string _routePrefix;        
 
         public ChangeRevealPrefixConvention(string prefix)
         {
-            _prefix = prefix;
+            _routePrefix = prefix;
         }
 
-        public void Apply(ApplicationModel application)
+        public void Apply(ControllerModel controller)
         {
-            //todo: customize to fit your needs
-            foreach (var controller in application.Controllers)
+            // Only apply to controllers in the Embedalytics.SDK namespace
+            var controllerNamespace = controller.ControllerType.Namespace;            
+            if (controllerNamespace != null && controllerNamespace.StartsWith("Infragistics.EMServer.Web.Controllers.WebAPI"))
             {
-                if (controller.ControllerName == "DashboardFile" || controller.ControllerName == "SdkReveal")
+                
+                // Get the existing attribute routes
+                var attributeRoutes = controller.Selectors
+                    .Where(s => s.AttributeRouteModel != null)
+                    .Select(s => s.AttributeRouteModel)
+                    .ToList();
+
+                if (attributeRoutes.Any())
                 {
-                    foreach (var selector in controller.Selectors)
+                    // Replace each route template with the prefixed version
+                    foreach (var route in attributeRoutes)
                     {
-                        GenerateTemplate(selector);
+                        if (route.Template != null)
+                        {
+                            route.Template = $"{_routePrefix}/{route.Template.TrimStart('/')}".TrimEnd('/');
+                        }
                     }
                 }
 
@@ -47,13 +59,17 @@ namespace RevealSdk.Server
                     }
                 }
             }
+
         }
 
         private void GenerateTemplate(SelectorModel selector)
         {
-            var existingTemplate = selector.AttributeRouteModel.Template ?? string.Empty;
-            var newTemplate = $"{_prefix}/{existingTemplate.TrimStart('/')}";
-            selector.AttributeRouteModel.Template = newTemplate;
+            if (selector.AttributeRouteModel?.Template != null)
+            {
+                var existingTemplate = selector.AttributeRouteModel.Template;
+                var newTemplate = $"{_routePrefix}/{existingTemplate.TrimStart('/')}";
+                selector.AttributeRouteModel.Template = newTemplate;
+            }
         }
     }
 }
